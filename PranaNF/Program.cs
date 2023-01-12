@@ -25,9 +25,7 @@ namespace PranaNF
         {
             Debug.WriteLine("Hello from nanoFramework!");
 
-
-
-            BluetoothLEAdvertisementWatcher watcher = new() { ScanningMode = BluetoothLEScanningMode.Active};
+            BluetoothLEAdvertisementWatcher watcher = new();
             watcher.Received += Watcher_Received;
             watcher.ScanningMode = BluetoothLEScanningMode.Active;
 
@@ -35,23 +33,8 @@ namespace PranaNF
             {
                 Console.WriteLine("Starting BluetoothLEAdvertisementWatcher");
                 watcher.Start();
-
-                // Run until we have found some devices to connect to
-                while (s_foundDevices.Count == 0)
-                {
-                    Thread.Sleep(10000);
-                }
-                
-                Console.WriteLine("Stopping BluetoothLEAdvertisementWatcher");
-
-                // We can't connect if watch running so stop it.
+                Thread.Sleep(30000);
                 watcher.Stop();
-
-                Console.WriteLine($"Devices found {s_foundDevices.Count}");
-                Console.WriteLine("Connecting and Reading Sensors");
-
-
-                s_foundDevices.Clear();
             }
         
 
@@ -63,43 +46,20 @@ namespace PranaNF
         private static void Watcher_Received(BluetoothLEAdvertisementWatcher sender,
             BluetoothLEAdvertisementReceivedEventArgs args)
         {
-            Guid gattService = new("0000baba-0000-1000-8000-00805f9b34fb");
-            Guid gattChar = new("0000cccc-0000-1000-8000-00805f9b34fb");
             Console.WriteLine(
                 $"Received advertisement address:{args.BluetoothAddress:X}/{args.BluetoothAddressType} Name:{args.Advertisement.LocalName}  Advert type:{args.AdvertisementType}  Services:{args.Advertisement.ServiceUuids.Length}");
 
-            if (args.Advertisement.LocalName.Contains("PRANA"))
-            {
-                device = BluetoothLEDevice.FromBluetoothAddress(args.BluetoothAddress);
-                var sr = device.GetGattServicesForUuid(gattService);
-                Console.WriteLine($"{sr.Status} {sr.Services.Length}");
-                if (sr.Status == GattCommunicationStatus.Success && sr.Services.Length > 0)
-                {
-                    
-                    var srv = sr.Services[0];
-                    var cr = srv.GetCharacteristicsForUuid(gattChar);
-                    if (cr.Status == GattCommunicationStatus.Success && cr.Characteristics.Length > 0)
-                    {
-                        var chr = cr.Characteristics[0];
-                        chr.ValueChanged += Chr_ValueChanged;
-                        var result =
-                            chr.WriteClientCharacteristicConfigurationDescriptorWithResult(
-                                GattClientCharacteristicConfigurationDescriptorValue.Notify);
-                        var dw = new DataWriter();
-                        dw.WriteBytes(Prana.Command.ReadState);
-                        chr.WriteValueWithResult(dw);
-                    }
-                }
-            }
+            device = BluetoothLEDevice.FromBluetoothAddress(args.BluetoothAddress);
+            device.GattServicesChanged += Device_GattServicesChanged;
+            var sr = device.GetGattServices();
+            Console.WriteLine($"Service count: {sr.Services.Length}");
         }
 
-        private static void Chr_ValueChanged(GattCharacteristic sender, GattValueChangedEventArgs valueChangedEventArgs)
+        private static void Device_GattServicesChanged(object sender, EventArgs e)
         {
-            var dr = DataReader.FromBuffer(valueChangedEventArgs.CharacteristicValue);
-            var skip = new byte[9];
-            dr.ReadBytes(skip);
-            Console.WriteLine(dr.ReadInt16().ToString());
-            
+            var device = (BluetoothLEDevice)sender;
+
+            Console.WriteLine($"Services changed!");
         }
     }
 }
